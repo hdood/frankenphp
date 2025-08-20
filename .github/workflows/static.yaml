@@ -53,7 +53,7 @@ jobs:
         run: |
           ref="${{ (github.ref_type == 'tag' && github.ref_name) || (github.event_name == 'workflow_dispatch' && inputs.version) || '' }}"
           if [[ -z "${ref}" ]]; then
-            ref="$(gh release view --repo dunglas/frankenphp --json tagName --jq '.tagName')"
+            ref="$(gh release view --repo ${{ github.repository }} --json tagName --jq '.tagName')"
           fi
 
           echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
@@ -106,12 +106,12 @@ jobs:
         uses: docker/setup-buildx-action@v3
         with:
           platforms: ${{ matrix.platform }}
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        with:
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+      # - name: Login to DockerHub
+      #   uses: docker/login-action@v3
+      #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      #   with:
+      #     username: ${{ secrets.REGISTRY_USERNAME }}
+      #     password: ${{ secrets.REGISTRY_PASSWORD }}
       - name: Build
         id: build
         uses: docker/bake-action@v6
@@ -298,62 +298,62 @@ jobs:
           BINARY: ./gh-output/frankenphp-linux-${{ matrix.platform == 'linux/amd64' && 'x86_64' || 'aarch64' }}-gnu
 
   # Adapted from https://docs.docker.com/build/ci/github-actions/multi-platform/
-  push:
-    runs-on: ubuntu-24.04
-    needs:
-      - prepare
-      - build-linux-musl
-      - build-linux-gnu
-    if: fromJson(needs.prepare.outputs.push)
-    steps:
-      - name: Download metadata
-        uses: actions/download-artifact@v5
-        with:
-          pattern: metadata-static-builder-musl-*
-          path: /tmp/metadata
-          merge-multiple: true
-      - name: Download GNU metadata
-        uses: actions/download-artifact@v5
-        with:
-          pattern: metadata-static-builder-gnu-*
-          path: /tmp/metadata-gnu
-          merge-multiple: true
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        with:
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-      - name: Create manifest list and push
-        working-directory: /tmp/metadata
-        run: |
-          # shellcheck disable=SC2046,SC2086
-          docker buildx imagetools create $(jq -cr '.target."static-builder-musl".tags | map("-t " + .) | join(" ")' <<< "${METADATA}") \
-            $(printf "${IMAGE_NAME}@sha256:%s " *)
-        env:
-          METADATA: ${{ needs.prepare.outputs.metadata }}
-      - name: Create GNU manifest list and push
-        working-directory: /tmp/metadata-gnu
-        run: |
-          # shellcheck disable=SC2046,SC2086
-          docker buildx imagetools create $(jq -cr '.target."static-builder-gnu".tags | map("-t " + .) | join(" ")' <<< "${GNU_METADATA}") \
-            $(printf "${IMAGE_NAME}@sha256:%s " *)
-        env:
-          GNU_METADATA: ${{ needs.prepare.outputs.gnu_metadata }}
-      - name: Inspect image
-        run: |
-          # shellcheck disable=SC2046,SC2086
-          docker buildx imagetools inspect "$(jq -cr '.target."static-builder-musl".tags | first' <<< "${METADATA}")"
-        env:
-          METADATA: ${{ needs.prepare.outputs.metadata }}
-      - name: Inspect GNU image
-        run: |
-          # shellcheck disable=SC2046,SC2086
-          docker buildx imagetools inspect "$(jq -cr '.target."static-builder-gnu".tags | first' <<< "${GNU_METADATA}")-gnu"
-        env:
-          GNU_METADATA: ${{ needs.prepare.outputs.gnu_metadata }}
+  # push:
+  #   runs-on: ubuntu-24.04
+  #   needs:
+  #     - prepare
+  #     - build-linux-musl
+  #     - build-linux-gnu
+  #   if: fromJson(needs.prepare.outputs.push)
+  #   steps:
+  #     - name: Download metadata
+  #       uses: actions/download-artifact@v5
+  #       with:
+  #         pattern: metadata-static-builder-musl-*
+  #         path: /tmp/metadata
+  #         merge-multiple: true
+  #     - name: Download GNU metadata
+  #       uses: actions/download-artifact@v5
+  #       with:
+  #         pattern: metadata-static-builder-gnu-*
+  #         path: /tmp/metadata-gnu
+  #         merge-multiple: true
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+  #     - name: Login to DockerHub
+  #       uses: docker/login-action@v3
+  #       if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  #       with:
+  #         username: ${{ secrets.REGISTRY_USERNAME }}
+  #         password: ${{ secrets.REGISTRY_PASSWORD }}
+  #     - name: Create manifest list and push
+  #       working-directory: /tmp/metadata
+  #       run: |
+  #         # shellcheck disable=SC2046,SC2086
+  #         docker buildx imagetools create $(jq -cr '.target."static-builder-musl".tags | map("-t " + .) | join(" ")' <<< "${METADATA}") \
+  #           $(printf "${IMAGE_NAME}@sha256:%s " *)
+  #       env:
+  #         METADATA: ${{ needs.prepare.outputs.metadata }}
+  #     - name: Create GNU manifest list and push
+  #       working-directory: /tmp/metadata-gnu
+  #       run: |
+  #         # shellcheck disable=SC2046,SC2086
+  #         docker buildx imagetools create $(jq -cr '.target."static-builder-gnu".tags | map("-t " + .) | join(" ")' <<< "${GNU_METADATA}") \
+  #           $(printf "${IMAGE_NAME}@sha256:%s " *)
+  #       env:
+  #         GNU_METADATA: ${{ needs.prepare.outputs.gnu_metadata }}
+  #     - name: Inspect image
+  #       run: |
+  #         # shellcheck disable=SC2046,SC2086
+  #         docker buildx imagetools inspect "$(jq -cr '.target."static-builder-musl".tags | first' <<< "${METADATA}")"
+  #       env:
+  #         METADATA: ${{ needs.prepare.outputs.metadata }}
+  #     - name: Inspect GNU image
+  #       run: |
+  #         # shellcheck disable=SC2046,SC2086
+  #         docker buildx imagetools inspect "$(jq -cr '.target."static-builder-gnu".tags | first' <<< "${GNU_METADATA}")-gnu"
+  #       env:
+  #         GNU_METADATA: ${{ needs.prepare.outputs.gnu_metadata }}
 
   build-mac:
     strategy:
