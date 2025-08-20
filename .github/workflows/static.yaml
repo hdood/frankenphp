@@ -28,8 +28,8 @@ on:
         description: "FrankenPHP version"
         required: false
         type: string
-  schedule:
-    - cron: "0 0 * * *"
+  # schedule:
+  #   - cron: "0 0 * * *"
 permissions:
   contents: write
   id-token: write
